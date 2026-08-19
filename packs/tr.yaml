@@ -1,0 +1,275 @@
+# Aftermath rule pack — Türkiye
+#
+# STATUS: v0 DRAFT. Every legal duration and procedure below must be verified
+# against a primary source before it is shown in the demo. Entries carrying
+# `confidence: verified` have a source URL; the rest are explicitly marked.
+#
+# This file is data, not advice. See docs/SAFETY.md.
+
+meta:
+  jurisdiction: TR
+  name: Türkiye
+  version: 0.1.0
+  language: tr
+  last_reviewed: 2026-08-15
+  status: draft
+
+# ---------------------------------------------------------------------------
+# Artifacts — the currency of the dependency graph
+# ---------------------------------------------------------------------------
+artifacts:
+  - { id: death_certificate,      kind: document,    name_en: Death certificate,              name_local: Ölüm belgesi }
+  - { id: death_registered,       kind: status,      name_en: Death registered in civil registry, name_local: Nüfusa ölüm bildirimi yapılmış }
+  - { id: inheritance_certificate,kind: document,    name_en: Certificate of inheritance,     name_local: Mirasçılık belgesi (veraset ilamı) }
+  - { id: bank_position,          kind: information, name_en: Bank accounts and liabilities,  name_local: Banka hesap ve borç durumu }
+  - { id: credit_report,          kind: information, name_en: Credit bureau risk report,      name_local: Kredi kayıt bürosu risk raporu }
+  - { id: tax_debt_position,      kind: information, name_en: Outstanding tax liabilities,    name_local: Vergi borcu durumu }
+  - { id: ssi_position,           kind: information, name_en: Social security position,       name_local: SGK durumu }
+  - { id: debt_picture,           kind: information, name_en: Complete debt picture,          name_local: Borç tablosu }
+  - { id: tax_clearance,          kind: document,    name_en: Inheritance tax clearance,      name_local: Veraset ve intikal vergisi ilişik kesme belgesi }
+  - { id: title_transferred,      kind: status,      name_en: Title deed transferred,         name_local: Tapu intikali tamamlandı }
+  - { id: vehicle_transferred,    kind: status,      name_en: Vehicle transferred,            name_local: Araç devri tamamlandı }
+  - { id: survivor_pension_open,  kind: status,      name_en: Survivor pension application open, name_local: Ölüm aylığı başvurusu yapıldı }
+  - { id: utilities_settled,      kind: status,      name_en: Utility accounts settled,       name_local: Abonelikler devredildi/kapatıldı }
+
+# ---------------------------------------------------------------------------
+# Deadlines — the hard clocks the critical path schedules backwards from
+# ---------------------------------------------------------------------------
+deadlines:
+  - id: renounce_inheritance
+    name_en: Renunciation of inheritance
+    name_local: Mirasın reddi
+    duration_days: 90
+    starts_from: knowledge_of_death
+    severity: critical
+    irreversible: true
+    requires_decision_input: [debt_picture]
+    consequence_en: >
+      If this window closes without a renunciation filing, the estate — including
+      the deceased's debts — is deemed accepted by the heirs.
+    consequence_local: >
+      Süre içinde reddedilmezse miras, murisin borçlarıyla birlikte kabul edilmiş
+      sayılır.
+    confidence: verified
+    source:
+      cite: "4721 sayılı Türk Medeni Kanunu m.606"
+      url: "https://www.mevzuat.gov.tr/MevzuatMetin/1.5.4721.pdf"
+      retrieved: 2026-08-15
+
+  - id: inheritance_tax_declaration
+    name_en: Inheritance and gift tax declaration
+    name_local: Veraset ve intikal vergisi beyannamesi
+    duration_days: 120
+    starts_from: date_of_death
+    severity: high
+    irreversible: false
+    requires_decision_input: [inheritance_certificate]
+    consequence_en: >
+      Late filing exposes the heirs to penalties, and the tax clearance document
+      required for title and vehicle transfers cannot be obtained until it is filed.
+    consequence_local: >
+      Geç beyan cezaya yol açar; ayrıca tapu ve araç devri için gereken ilişik
+      kesme belgesi alınamaz.
+    confidence: common_practice
+    source:
+      cite: "7338 sayılı Veraset ve İntikal Vergisi Kanunu — beyan süreleri"
+      url: "https://www.mevzuat.gov.tr/mevzuat?MevzuatNo=7338&MevzuatTur=1&MevzuatTertip=4"
+      retrieved: 2026-08-15
+    notes_local: >
+      DİKKAT: Reddi miras süresi (3 ay) bu beyan süresinden (4 ay) önce doluyor.
+      Bu çelişki Aftermath'in çözmek için var olduğu problemdir.
+
+# ---------------------------------------------------------------------------
+# Institutions
+# ---------------------------------------------------------------------------
+institutions:
+  - { id: hospital_municipality, name_en: Hospital / municipality, name_local: Hastane / Belediye, channels: [in_person],            responsiveness_days: { typical: 1,  max: 3 } }
+  - { id: civil_registry,        name_en: Civil registry office,   name_local: Nüfus Müdürlüğü,   channels: [in_person, e_devlet],  responsiveness_days: { typical: 2,  max: 7 } }
+  - { id: notary,                name_en: Notary,                  name_local: Noter,             channels: [in_person],            responsiveness_days: { typical: 1,  max: 3 } }
+  - { id: civil_court,           name_en: Civil court of peace,    name_local: Sulh Hukuk Mahkemesi, channels: [in_person],         responsiveness_days: { typical: 14, max: 45 } }
+  - { id: bank,                  name_en: Bank,                    name_local: Banka,             channels: [in_person],            responsiveness_days: { typical: 7,  max: 30 } }
+  - { id: credit_bureau,         name_en: Credit bureau,           name_local: Kredi Kayıt Bürosu, channels: [online],              responsiveness_days: { typical: 1,  max: 5 } }
+  - { id: tax_office,            name_en: Tax office,              name_local: Vergi Dairesi,     channels: [in_person, e_devlet],  responsiveness_days: { typical: 5,  max: 20 } }
+  - { id: ssi,                   name_en: Social Security Institution, name_local: SGK,           channels: [in_person, e_devlet],  responsiveness_days: { typical: 10, max: 45 } }
+  - { id: land_registry,         name_en: Land registry,           name_local: Tapu Müdürlüğü,    channels: [in_person],            responsiveness_days: { typical: 7,  max: 30 } }
+  - { id: insurer,               name_en: Insurer / private pension, name_local: Sigorta / BES,   channels: [in_person, mail],      responsiveness_days: { typical: 10, max: 45 } }
+  - { id: utility,               name_en: Utility provider,        name_local: Abone kurumu,      channels: [in_person, online],    responsiveness_days: { typical: 5,  max: 20 } }
+  - { id: telecom,               name_en: Telecom operator,        name_local: GSM operatörü,     channels: [in_person, online],    responsiveness_days: { typical: 3,  max: 14 } }
+
+# ---------------------------------------------------------------------------
+# Steps
+# ---------------------------------------------------------------------------
+steps:
+  - id: obtain_death_certificate
+    name_en: Obtain the death certificate
+    name_local: Ölüm belgesinin alınması
+    institution: hospital_municipality
+    requires: []
+    produces: [death_certificate]
+    duration_days: { min: 1, typical: 1, max: 3 }
+    confidence: verified
+    applies_if: always
+    source: { cite: "Ölüm olayının bildirimi", url: "https://www.nvi.gov.tr/", retrieved: 2026-08-15 }
+    notes_local: Ölüm hastanede gerçekleştiyse hastane, evde gerçekleştiyse belediye tarafından düzenlenir.
+
+  - id: register_death
+    name_en: Death registered in the civil registry
+    name_local: Ölümün nüfusa bildirilmesi
+    institution: civil_registry
+    requires: [death_certificate]
+    produces: [death_registered]
+    duration_days: { min: 1, typical: 3, max: 10 }
+    confidence: common_practice
+    applies_if: always
+    notes_local: Çoğu durumda hastane veya belediye tarafından otomatik bildirilir; yine de teyit edilmelidir.
+
+  - id: obtain_inheritance_certificate
+    name_en: Obtain the certificate of inheritance
+    name_local: Mirasçılık belgesinin (veraset ilamı) alınması
+    institution: notary
+    requires: [death_registered]
+    produces: [inheritance_certificate]
+    duration_days: { min: 1, typical: 7, max: 21 }
+    confidence: common_practice
+    applies_if: always
+    documents: [petition_inheritance_certificate]
+    notes_local: >
+      Noterden alınabilir. Mirasçılık durumu ihtilaflıysa veya yabancılık unsuru
+      varsa Sulh Hukuk Mahkemesine başvurmak gerekir; bu yol belirgin şekilde
+      daha uzun sürer.
+    blocking: true   # nothing downstream moves without this
+
+  - id: query_banks
+    name_en: Query the banks
+    name_local: Banka hesap ve borç sorgusu
+    institution: bank
+    requires: [inheritance_certificate]
+    produces: [bank_position]
+    duration_days: { min: 3, typical: 14, max: 30 }
+    confidence: common_practice
+    applies_if: always
+    notes_local: >
+      Her banka ayrı ayrı sorgulanır. Hesapların yanında kiralık kasa, kredi ve
+      kredi kartı borçları da sorulmalıdır. Bu adım genellikle en uzun süren
+      belirsizlik kaynağıdır.
+
+  - id: credit_bureau_report
+    name_en: Obtain the credit bureau risk report
+    name_local: Kredi kayıt bürosu risk raporunun alınması
+    institution: credit_bureau
+    requires: [inheritance_certificate]
+    produces: [credit_report]
+    duration_days: { min: 1, typical: 3, max: 7 }
+    confidence: ask_a_professional
+    applies_if: always
+    notes_local: Murise ait kredi ve kart borçlarının toplu görüntüsü için başvurulur.
+
+  - id: query_tax_debt
+    name_en: Query outstanding tax liabilities
+    name_local: Vergi borcu sorgusu
+    institution: tax_office
+    requires: [inheritance_certificate]
+    produces: [tax_debt_position]
+    duration_days: { min: 1, typical: 7, max: 20 }
+    confidence: common_practice
+    applies_if: always
+
+  - id: query_ssi
+    name_en: Query the social security position
+    name_local: SGK durum sorgusu
+    institution: ssi
+    requires: [inheritance_certificate]
+    produces: [ssi_position]
+    duration_days: { min: 1, typical: 7, max: 20 }
+    confidence: common_practice
+    applies_if: always
+
+  - id: compile_debt_picture
+    name_en: Compile the complete debt picture
+    name_local: Borç tablosunun çıkarılması
+    institution: null
+    requires: [bank_position, credit_report, tax_debt_position, ssi_position]
+    produces: [debt_picture]
+    duration_days: { min: 1, typical: 2, max: 5 }
+    confidence: common_practice   # internal synthesis step, not a legal claim
+    applies_if: always
+    notes_local: >
+      Reddi miras kararı bu tablo olmadan sağlıklı verilemez. Aftermath'in geriye
+      doğru takvimi bu adımın 90. günden önce tamamlanmasını hedefler.
+
+  - id: file_inheritance_tax_declaration
+    name_en: File the inheritance and gift tax declaration
+    name_local: Veraset ve intikal vergisi beyannamesinin verilmesi
+    institution: tax_office
+    requires: [inheritance_certificate]
+    produces: [tax_clearance]
+    duration_days: { min: 3, typical: 15, max: 45 }
+    confidence: common_practice
+    applies_if: always
+    documents: [inheritance_tax_declaration_form]
+
+  - id: transfer_title_deed
+    name_en: Transfer the title deed
+    name_local: Tapu intikali
+    institution: land_registry
+    requires: [inheritance_certificate, tax_clearance]
+    produces: [title_transferred]
+    duration_days: { min: 3, typical: 14, max: 30 }
+    confidence: common_practice
+    applies_if: has_property
+    notes_local: İlişik kesme belgesi olmadan işlem yapılmaz — beyan adımına bağlıdır.
+
+  - id: transfer_vehicle
+    name_en: Transfer the vehicle
+    name_local: Araç devri
+    institution: notary
+    requires: [inheritance_certificate, tax_clearance]
+    produces: [vehicle_transferred]
+    duration_days: { min: 1, typical: 7, max: 21 }
+    confidence: common_practice
+    applies_if: has_vehicle
+
+  - id: apply_survivor_pension
+    name_en: Apply for the survivor pension
+    name_local: Ölüm aylığı / dul-yetim aylığı başvurusu
+    institution: ssi
+    requires: [inheritance_certificate]
+    produces: [survivor_pension_open]
+    duration_days: { min: 7, typical: 30, max: 90 }
+    confidence: common_practice
+    applies_if: has_eligible_survivors
+    notes_local: Cenaze ödeneği de aynı başvuruda talep edilebilir.
+
+  - id: claim_insurance_and_private_pension
+    name_en: Claim life insurance and private pension
+    name_local: Hayat sigortası ve BES talebi
+    institution: insurer
+    requires: [inheritance_certificate]
+    produces: []
+    duration_days: { min: 7, typical: 30, max: 60 }
+    confidence: common_practice
+    applies_if: always
+    notes_local: >
+      En sık unutulan kalem. Murisin farkında olunmayan bir bireysel emeklilik
+      veya hayat sigortası poliçesi olabilir; sorgulanmalıdır.
+
+  - id: settle_utilities
+    name_en: Transfer or close utility accounts
+    name_local: Abonelik devri veya kapatılması
+    institution: utility
+    requires: [death_certificate]
+    produces: [utilities_settled]
+    duration_days: { min: 1, typical: 10, max: 25 }
+    confidence: common_practice
+    applies_if: always
+    notes_local: Elektrik, su, doğalgaz, internet. Her biri ayrı başvuru gerektirir.
+
+  - id: close_mobile_lines
+    name_en: Close or transfer mobile lines
+    name_local: GSM hatlarının kapatılması veya devri
+    institution: telecom
+    requires: [death_certificate]
+    produces: []
+    duration_days: { min: 1, typical: 5, max: 14 }
+    confidence: common_practice
+    applies_if: always

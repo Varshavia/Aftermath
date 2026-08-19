@@ -1,0 +1,98 @@
+# Aftermath rule pack — United States (PARTIAL)
+#
+# This pack exists to prove one claim: the engine is not written for Turkey.
+# Swap the pack, keep the code, and the same solver produces a US plan.
+#
+# It is deliberately shallow and is NOT presented as usable guidance. US probate
+# is state-by-state; a real pack would be per-state, not per-country.
+
+meta:
+  jurisdiction: US
+  name: United States (illustrative)
+  version: 0.0.2
+  language: en
+  last_reviewed: 2026-08-15
+  status: draft
+
+artifacts:
+  - { id: death_certificate,    kind: document,    name_en: Certified death certificate }
+  - { id: letters_testamentary, kind: document,    name_en: Letters testamentary / of administration }
+  - { id: asset_inventory,      kind: information, name_en: Inventory of estate assets }
+  - { id: debt_picture,         kind: information, name_en: Complete debt picture }
+  - { id: creditor_notice_done, kind: status,      name_en: Creditors notified }
+  - { id: accounts_settled,     kind: status,      name_en: Financial accounts settled }
+
+deadlines:
+  - id: creditor_claim_window
+    name_en: Creditor claim window
+    duration_days: 120
+    starts_from: date_of_death
+    severity: high
+    irreversible: false
+    requires_decision_input: [debt_picture]
+    consequence_en: >
+      Distributing the estate before the claim window closes can leave the personal
+      representative personally exposed to late claims. Windows vary by state.
+    confidence: ask_a_professional
+    notes_local: Illustrative only — the actual window is set by state law.
+
+institutions:
+  - { id: vital_records,  name_en: Vital records office, channels: [online, mail],      responsiveness_days: { typical: 7,  max: 21 } }
+  - { id: probate_court,  name_en: Probate court,        channels: [in_person, online], responsiveness_days: { typical: 21, max: 90 } }
+  - { id: bank,           name_en: Bank,                 channels: [in_person],         responsiveness_days: { typical: 7,  max: 30 } }
+  - { id: credit_bureau,  name_en: Credit bureau,        channels: [online],            responsiveness_days: { typical: 3,  max: 14 } }
+
+steps:
+  - id: order_death_certificates
+    name_en: Order certified copies of the death certificate
+    institution: vital_records
+    requires: []
+    produces: [death_certificate]
+    duration_days: { min: 3, typical: 10, max: 21 }
+    confidence: common_practice
+    applies_if: always
+
+  - id: open_probate
+    name_en: Open probate and obtain letters
+    institution: probate_court
+    requires: [death_certificate]
+    produces: [letters_testamentary]
+    duration_days: { min: 14, typical: 45, max: 90 }
+    confidence: ask_a_professional
+    applies_if: always
+
+  - id: inventory_assets
+    name_en: Inventory the estate assets
+    institution: bank
+    requires: [letters_testamentary]
+    produces: [asset_inventory, accounts_settled]
+    duration_days: { min: 7, typical: 21, max: 45 }
+    confidence: ask_a_professional
+    applies_if: always
+
+  - id: pull_credit_report
+    name_en: Pull the decedent's credit report
+    institution: credit_bureau
+    requires: [death_certificate]
+    produces: []
+    duration_days: { min: 1, typical: 7, max: 14 }
+    confidence: common_practice
+    applies_if: always
+
+  - id: notify_creditors
+    name_en: Notify known creditors
+    institution: probate_court
+    requires: [letters_testamentary]
+    produces: [creditor_notice_done]
+    duration_days: { min: 3, typical: 14, max: 30 }
+    confidence: ask_a_professional
+    applies_if: always
+
+  - id: compile_debt_picture
+    name_en: Compile the complete debt picture
+    institution: null
+    requires: [asset_inventory, creditor_notice_done]
+    produces: [debt_picture]
+    duration_days: { min: 1, typical: 5, max: 10 }
+    confidence: common_practice
+    applies_if: always
