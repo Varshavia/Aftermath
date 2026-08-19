@@ -83,10 +83,33 @@ The clocks the engine schedules backwards from.
   source: { url: "...", cite: "...", retrieved: 2026-08-15 }
 ```
 
-`requires_decision_input` is the field that makes the critical path possible: it
-says *you cannot sensibly make this decision until these artifacts exist*. The
+### Decision deadlines vs action deadlines
+
+There are two kinds of clock, and they schedule differently.
+
+A **decision** deadline is one you satisfy by *knowing* something. Renunciation
+is the example: the law gives you 90 days to decide, and you cannot decide
+sensibly until the debt picture exists. That is what `requires_decision_input`
+declares — *you cannot make this decision until these artifacts exist*. The
 solver walks back from the deadline through the artifact chain and reports the
 latest date each upstream step may start.
+
+An **action** deadline is one you satisfy by *doing* something. Filing the
+inheritance and gift tax declaration by day 120 is the example: nothing needs to
+be decided, but a specific step has to be finished. That is what `satisfied_by`
+declares.
+
+```yaml
+- id: inheritance_tax_declaration
+  duration_days: 120
+  satisfied_by: file_inheritance_tax_declaration   # a step id
+```
+
+Every deadline needs at least one of the two, and the loader rejects a deadline
+that has neither — without an anchor nothing schedules backwards from it and the
+clock silently does no work. A deadline may declare both, in which case the
+engine takes the later of the two: you cannot file before you can file, and you
+cannot decide before you know.
 
 `irreversible: true` means missing it cannot be fixed later. These are ranked
 first in every view.
@@ -137,11 +160,34 @@ first in every view.
 
 A step with no `source` **may not** be `verified`. The pack loader enforces this.
 
-### `applies_if`
+### `applies_if` and `applies_unless`
 
 Conditions are declared, not coded. The engine passes a case profile (does the
-estate include property? a vehicle? a business?) and filters steps whose
-condition is unmet. Add new conditions to the enum in `engine/pack.py`.
+estate include property? a vehicle? a business? are the heirs contested?) and
+filters steps whose condition is unmet. Add new conditions to the enum in
+`engine/pack.py`.
+
+A step is in the plan when `applies_if` holds **and** `applies_unless` does not.
+The second field exists for mutually exclusive routes to the same artifact:
+
+```yaml
+- id: obtain_inheritance_certificate
+  produces: [inheritance_certificate]
+  institution: notary
+  applies_if: always
+  applies_unless: has_contested_heirs      # the notary route closes
+
+- id: obtain_inheritance_certificate_court
+  produces: [inheritance_certificate]
+  institution: civil_court
+  applies_if: has_contested_heirs          # ...and this one opens
+  duration_days: { min: 21, typical: 60, max: 120 }
+```
+
+Both steps produce the same artifact, so nothing downstream changes — but the
+route is months slower, which is enough to put the 90-day renunciation window
+out of reach. Expressing the fork as data rather than as branching code is the
+whole point: a jurisdiction with three routes needs three entries, not an `if`.
 
 ---
 

@@ -30,6 +30,7 @@ KNOWN_CONDITIONS: set[str] = {
     "has_business",
     "has_eligible_survivors",
     "has_foreign_assets",
+    "has_contested_heirs",
 }
 
 
@@ -97,6 +98,12 @@ class Deadline(_Base):
     severity: Severity = "normal"
     irreversible: bool = False
     requires_decision_input: list[str] = Field(default_factory=list)
+    #: The step that *discharges* this deadline, when the deadline is an action
+    #: rather than a decision. "File the declaration by day 120" is satisfied by
+    #: a step; "decide whether to renounce by day 90" is not. Without this the
+    #: backward pass never gives the filing step a latest start, and the plan
+    #: silently implies the filing has no clock of its own.
+    satisfied_by: str | None = None
     consequence_en: str | None = None
     consequence_local: str | None = None
     confidence: Confidence = "common_practice"
@@ -125,6 +132,11 @@ class Step(_Base):
     source: Source | None = None
     documents: list[str] = Field(default_factory=list)
     applies_if: str = "always"
+    #: The mirror of ``applies_if``: this step drops out when the condition
+    #: holds. Needed for mutually exclusive routes — in Turkey the certificate
+    #: of inheritance comes from a notary *unless* the heirs are contested, in
+    #: which case only the civil court can issue it.
+    applies_unless: str | None = None
     notes_local: str | None = None
     blocking: bool = False
 
@@ -190,6 +202,17 @@ class Pack(_Base):
                     f"step '{s.id}' uses unknown condition '{s.applies_if}'. "
                     f"Add it to KNOWN_CONDITIONS instead of special-casing it."
                 )
+            if s.applies_unless is not None:
+                if s.applies_unless not in KNOWN_CONDITIONS:
+                    problems.append(
+                        f"step '{s.id}' uses unknown condition '{s.applies_unless}' "
+                        f"in applies_unless. Add it to KNOWN_CONDITIONS."
+                    )
+                if s.applies_unless == "always":
+                    problems.append(
+                        f"step '{s.id}' has applies_unless: always, which means it "
+                        f"never applies. Delete the step instead."
+                    )
             # Safety rule 2: no verified claim without a source.
             if s.confidence == "verified" and s.source is None:
                 problems.append(f"step '{s.id}' is marked verified but has no source")
@@ -202,6 +225,15 @@ class Pack(_Base):
                     )
             if d.confidence == "verified" and d.source is None:
                 problems.append(f"deadline '{d.id}' is marked verified but has no source")
+            if d.satisfied_by is not None and d.satisfied_by not in seen_steps:
+                problems.append(
+                    f"deadline '{d.id}' is satisfied_by unknown step '{d.satisfied_by}'"
+                )
+            if not d.requires_decision_input and d.satisfied_by is None:
+                problems.append(
+                    f"deadline '{d.id}' has neither requires_decision_input nor "
+                    f"satisfied_by, so nothing schedules backwards from it"
+                )
 
         # Every artifact should be producible by something, or it can never exist.
         produced = {a for s in self.steps for a in s.produces}

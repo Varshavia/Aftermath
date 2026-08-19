@@ -9,7 +9,7 @@
 meta:
   jurisdiction: TR
   name: Türkiye
-  version: 0.1.0
+  version: 0.2.0
   language: tr
   last_reviewed: 2026-08-15
   status: draft
@@ -63,7 +63,10 @@ deadlines:
     starts_from: date_of_death
     severity: high
     irreversible: false
-    requires_decision_input: [inheritance_certificate]
+    # This deadline is an action, not a decision: it is discharged by actually
+    # filing. The engine therefore schedules the filing step itself backwards
+    # from day 120, instead of only asking when the facts could be known.
+    satisfied_by: file_inheritance_tax_declaration
     consequence_en: >
       Late filing exposes the heirs to penalties, and the tax clearance document
       required for title and vehicle transfers cannot be obtained until it is filed.
@@ -123,21 +126,43 @@ steps:
     applies_if: always
     notes_local: Çoğu durumda hastane veya belediye tarafından otomatik bildirilir; yine de teyit edilmelidir.
 
+  # Two routes to the same artifact. The notary is the ordinary path; when the
+  # heirs are contested it is closed and only the civil court can issue the
+  # certificate. The engine models producers of *artifacts*, so it does not need
+  # to know which country has which route — and the slow route is what puts the
+  # 90-day renunciation window in danger.
   - id: obtain_inheritance_certificate
-    name_en: Obtain the certificate of inheritance
-    name_local: Mirasçılık belgesinin (veraset ilamı) alınması
+    name_en: Obtain the certificate of inheritance from a notary
+    name_local: Mirasçılık belgesinin noterden alınması
     institution: notary
     requires: [death_registered]
     produces: [inheritance_certificate]
     duration_days: { min: 1, typical: 7, max: 21 }
     confidence: common_practice
     applies_if: always
+    applies_unless: has_contested_heirs
     documents: [petition_inheritance_certificate]
     notes_local: >
-      Noterden alınabilir. Mirasçılık durumu ihtilaflıysa veya yabancılık unsuru
-      varsa Sulh Hukuk Mahkemesine başvurmak gerekir; bu yol belirgin şekilde
-      daha uzun sürer.
+      Mirasçılık durumu ihtilafsızsa belge noterden alınabilir; genellikle kısa
+      sürer.
     blocking: true   # nothing downstream moves without this
+
+  - id: obtain_inheritance_certificate_court
+    name_en: Obtain the certificate of inheritance from the civil court
+    name_local: Mirasçılık belgesinin Sulh Hukuk Mahkemesinden alınması
+    institution: civil_court
+    requires: [death_registered]
+    produces: [inheritance_certificate]
+    duration_days: { min: 21, typical: 60, max: 120 }
+    confidence: ask_a_professional
+    applies_if: has_contested_heirs
+    documents: [petition_inheritance_certificate]
+    notes_local: >
+      Mirasçılık ihtilaflıysa veya yabancılık unsuru varsa noter yolu kapalıdır;
+      belge Sulh Hukuk Mahkemesinden alınır. Bu yol aylar sürebilir. Süre,
+      reddi miras için tanınan 3 aylık süreyi aşabilir — bu durumda karar,
+      borç tablosu tamamlanmadan verilmek zorunda kalır.
+    blocking: true
 
   - id: query_banks
     name_en: Query the banks

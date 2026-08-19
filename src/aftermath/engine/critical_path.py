@@ -59,13 +59,24 @@ class DeadlineReport:
     day: int
     irreversible: bool
     severity: str
-    #: earliest day every input needed to decide could realistically exist
-    inputs_ready_day: int
-    #: day - inputs_ready_day. Negative means the deadline cannot be met.
+    #: The earliest day this deadline could realistically be honoured. For a
+    #: *decision* deadline that is the day its last input exists; for an
+    #: *action* deadline it is the day the discharging step could finish.
+    #: A deadline that is both takes the later of the two.
+    ready_day: int
+    #: day - ready_day. Negative means the deadline cannot be met.
     slack_days: int
     feasible: bool
+    #: ``decision`` — you must know something by then; ``action`` — you must
+    #: have done something by then; ``both`` — the pack declares each.
+    kind: str = "decision"
     missing_inputs: list[str] = field(default_factory=list)
     consequence: str | None = None
+
+    @property
+    def inputs_ready_day(self) -> int:
+        """Deprecated alias for :attr:`ready_day`."""
+        return self.ready_day
 
 
 @dataclass
@@ -168,10 +179,20 @@ def _backward_pass(
             continue
         artifact_deadline[artifact] = deadline.duration_days
 
+    # An action deadline is discharged by a step rather than by knowing
+    # something. That step must itself finish by the deadline, and everything
+    # upstream of it inherits the clock. Without this the filing step looks
+    # unconstrained even though the filing *is* the deadline.
+    satisfying = deadline.satisfied_by
+    if satisfying is not None and satisfying not in schedules:
+        satisfying = None  # the step does not apply to this case profile
+
     # Walk the graph in reverse topological order, pushing deadlines upstream.
     for step_id in reversed(graph.order):
         step = graph.step(step_id)
         relevant = [artifact_deadline[a] for a in step.produces if a in artifact_deadline]
+        if step_id == satisfying:
+            relevant.append(deadline.duration_days)
         if not relevant:
             continue
 
@@ -188,8 +209,15 @@ def _backward_pass(
             current = artifact_deadline.get(artifact, INFINITY)
             artifact_deadline[artifact] = min(current, latest_start)
 
-    inputs_ready = _inputs_ready_day(graph, schedules, deadline)
-    slack = deadline.duration_days - inputs_ready
+    ready = _ready_day(graph, schedules, deadline, satisfying)
+    slack = deadline.duration_days - ready
+
+    if deadline.requires_decision_input and satisfying is not None:
+        kind = "both"
+    elif satisfying is not None:
+        kind = "action"
+    else:
+        kind = "decision"
 
     return DeadlineReport(
         deadline_id=deadline.id,
@@ -197,26 +225,36 @@ def _backward_pass(
         day=deadline.duration_days,
         irreversible=deadline.irreversible,
         severity=deadline.severity,
-        inputs_ready_day=inputs_ready,
+        ready_day=ready,
         slack_days=slack,
         feasible=slack >= 0 and not missing,
+        kind=kind,
         missing_inputs=missing,
         consequence=deadline.consequence_en,
     )
 
 
-def _inputs_ready_day(
+def _ready_day(
     graph: CaseGraph,
     schedules: dict[str, StepSchedule],
     deadline: Deadline,
+    satisfying: str | None,
 ) -> int:
-    if not deadline.requires_decision_input:
-        return 0
+    """The earliest day this deadline could realistically be honoured.
 
+    Decision inputs and the discharging action are both hard requirements, so
+    the answer is the later of the two — you cannot file before you can file,
+    and you cannot decide before you know.
+    """
     ready = 0
+
     for artifact in deadline.requires_decision_input:
         producer = graph.primary_producer(artifact)
         if producer is None:
             return INFINITY
         ready = max(ready, schedules[producer.id].earliest_finish)
+
+    if satisfying is not None:
+        ready = max(ready, schedules[satisfying].earliest_finish)
+
     return ready
