@@ -33,6 +33,21 @@ class CaseProfile:
     def allows(self, condition: str) -> bool:
         return condition == "always" or condition in self.conditions
 
+    def admits(self, step: Step) -> bool:
+        """Does this step apply to this case?
+
+        A step is in the plan when its ``applies_if`` condition holds *and* its
+        ``applies_unless`` condition does not. The second half is what lets a
+        pack describe mutually exclusive routes to the same artifact: in Turkey
+        the certificate of inheritance comes from a notary *unless* the heirs
+        are contested, in which case only the civil court can issue it.
+        """
+        if not self.allows(step.applies_if):
+            return False
+        if step.applies_unless is not None and self.allows(step.applies_unless):
+            return False
+        return True
+
     @classmethod
     def from_list(cls, conditions: list[str] | None) -> "CaseProfile":
         return cls(conditions=set(conditions or []))
@@ -44,7 +59,7 @@ class CaseGraph:
     def __init__(self, pack: Pack, profile: CaseProfile | None = None) -> None:
         self.pack = pack
         self.profile = profile or CaseProfile()
-        self.steps: list[Step] = [s for s in pack.steps if self.profile.allows(s.applies_if)]
+        self.steps: list[Step] = [s for s in pack.steps if self.profile.admits(s)]
         self._by_id = {s.id: s for s in self.steps}
         self.order: list[str] = self._topological_order()
 

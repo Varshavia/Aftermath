@@ -48,12 +48,13 @@ def _print_deadlines(schedule) -> None:  # noqa: ANN001
     table = Table(title="Deadlines", header_style="dim", title_justify="left")
     table.add_column("Deadline")
     table.add_column("Day", justify="right")
-    table.add_column("Inputs ready", justify="right")
+    table.add_column("Kind")
+    table.add_column("Earliest possible", justify="right")
     table.add_column("Slack", justify="right")
     table.add_column("Status")
 
     for d in sorted(schedule.deadlines, key=lambda x: (not x.irreversible, x.day)):
-        ready = "unreachable" if d.inputs_ready_day >= INFINITY else str(d.inputs_ready_day)
+        ready = "unreachable" if d.ready_day >= INFINITY else str(d.ready_day)
         if not d.feasible:
             status = "[red]AT RISK[/]"
         elif d.slack_days <= 14:
@@ -61,22 +62,33 @@ def _print_deadlines(schedule) -> None:  # noqa: ANN001
         else:
             status = "[green]OK[/]"
         name = d.name + ("  [red]⚠ irreversible[/]" if d.irreversible else "")
-        slack = "—" if d.inputs_ready_day >= INFINITY else f"{d.slack_days:+d}d"
-        table.add_row(name, str(d.day), ready, slack, status)
+        slack = "—" if d.ready_day >= INFINITY else f"{d.slack_days:+d}d"
+        table.add_row(name, str(d.day), d.kind, ready, slack, status)
 
     console.print(table)
 
     for d in schedule.deadlines:
-        if d.irreversible and d.consequence:
-            console.print(
-                Panel(
-                    f"[bold]{d.name}[/] — day {d.day}\n\n{d.consequence.strip()}\n\n"
-                    f"[dim]Inputs cannot realistically be ready before day "
-                    f"{d.inputs_ready_day}. Slack: {d.slack_days:+d} days.[/]",
-                    border_style="red",
-                    title="Irreversible",
-                )
+        if not (d.irreversible or not d.feasible):
+            continue
+        if d.kind == "action":
+            line = (
+                f"The filing itself cannot realistically be completed before day "
+                f"{d.ready_day}."
             )
+        else:
+            line = (
+                f"The facts needed to decide cannot realistically be known before "
+                f"day {d.ready_day}."
+            )
+        console.print(
+            Panel(
+                f"[bold]{d.name}[/] — day {d.day}\n\n"
+                f"{(d.consequence or '').strip()}\n\n"
+                f"[dim]{line} Slack: {d.slack_days:+d} days.[/]",
+                border_style="red",
+                title="Irreversible" if d.irreversible else "At risk",
+            )
+        )
 
 
 def _print_steps(pack, graph, schedule) -> None:  # noqa: ANN001

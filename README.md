@@ -128,25 +128,43 @@ aftermath validate --pack packs/tr.yaml
 # plan a case: an estate with a flat, a car and a surviving spouse
 aftermath plan --pack packs/tr.yaml --has has_property --has has_vehicle --has has_eligible_survivors
 
+# the same estate, but the heirs are contested
+aftermath plan --pack packs/tr.yaml --has has_property --has has_contested_heirs
+
 # the same engine on a different jurisdiction
 aftermath plan --pack packs/us.yaml
 ```
 
-Output:
+An uncontested estate clears the window with three weeks to spare:
 
 ```
-╭──────────────────── Aftermath ─────────────────────╮
-│ Türkiye · pack v0.1.0 · 15 steps               │
-│ DRAFT PACK — entries are not yet verified.     │
-╰────────────────────────────────────────────────╯
 Deadlines
-┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━┳━━━━━━━━┓
-┃ Deadline                     ┃ Day ┃ Inputs ready ┃ Slack ┃ Status ┃
-┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━╇━━━━━━━━┩
-│ Renunciation ⚠ irreversible  │  90 │           69 │  +21d │ OK     │
-│ Inheritance & gift tax       │ 120 │           34 │  +86d │ OK     │
-└──────────────────────────────┴─────┴──────────────┴───────┴────────┘
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━┳━━━━━━━┳━━━━━━━━┓
+┃ Deadline                     ┃ Day ┃ Kind     ┃ Earliest possible ┃ Slack ┃ Status ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━╇━━━━━━━╇━━━━━━━━┩
+│ Renunciation  ⚠ irreversible │  90 │ decision │                69 │  +21d │ OK     │
+│ Inheritance and gift tax     │ 120 │ action   │                79 │  +41d │ OK     │
+└──────────────────────────────┴─────┴──────────┴───────────────────┴───────┴────────┘
 ```
+
+Contest the heirs and the notary route closes. Only the civil court can issue the
+certificate, and it is slow enough that the whole thing comes apart:
+
+```
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━┳━━━━━━━┳━━━━━━━━━┓
+┃ Deadline                     ┃ Day ┃ Kind     ┃ Earliest possible ┃ Slack ┃ Status  ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━╇━━━━━━━╇━━━━━━━━━┩
+│ Renunciation  ⚠ irreversible │  90 │ decision │               168 │  -78d │ AT RISK │
+│ Inheritance and gift tax     │ 120 │ action   │               178 │  -58d │ AT RISK │
+└──────────────────────────────┴─────┴──────────┴───────────────────┴───────┴─────────┘
+
+  The facts needed to decide cannot realistically be known before day 168.
+```
+
+Nothing about that second case is a special case in the code. The pack declares
+two routes to one artifact; the engine picks the one this family is on and the
+arithmetic does the rest. **This is the number a family finds out on day 67.
+Aftermath prints it on day 1.**
 
 Run the tests — they need no credentials:
 

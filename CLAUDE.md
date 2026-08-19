@@ -301,11 +301,18 @@ When in doubt, cut features and deepen the demo.
 - [x] Architecture decided (engine + rule packs)
 - [x] Critical-path concept specified
 - [x] Repo scaffold, working engine, tests, TR pack v0
+- [x] Devpost registration; track declared (Everyday Agents)
+- [x] $50 AWS credits requested (19 Aug)
+- [x] Action vs decision deadlines (`satisfied_by`) — the 120-day filing now
+      schedules backwards from its own step
+- [x] Mutually exclusive routes (`applies_unless`) — notary vs civil court, and
+      the contested case now renders AT RISK. **This is the demo scene.**
 - [ ] Devpost draft submission created
-- [ ] AWS Builder IDs + $50 credits requested
+- [ ] AWS Builder IDs
+- [ ] Bedrock model access enabled + IAM key for the build session
 - [ ] Pack schema reviewed by both owners
 - [ ] `tr.yaml` expanded to 20+ sourced entries
-- [ ] Strands agents implemented
+- [ ] Strands agents implemented — **highest risk, still at zero**
 - [ ] AgentCore deployment
 - [ ] Dashboard
 - [ ] Architecture diagram

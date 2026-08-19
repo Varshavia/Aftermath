@@ -193,3 +193,125 @@ def test_engine_generalises_to_another_jurisdiction() -> None:
     window = next(d for d in schedule.deadlines if d.deadline_id == "creditor_claim_window")
     assert window.inputs_ready_day > 0
     assert schedule.steps["open_probate"].latest_start is not None
+
+
+# ---------------------------------------------------------------------------
+# action deadlines — "file by day 120" is discharged by a step, not by knowing
+# ---------------------------------------------------------------------------
+def test_action_deadline_pulls_its_own_step_onto_the_backward_pass() -> None:
+    """A deadline you satisfy by *doing* something must constrain the doing.
+
+    Before ``satisfied_by`` existed, the filing step had no latest start at all:
+    the plan implied the 120-day declaration had no clock of its own, which is
+    exactly backwards.
+    """
+    pack = load_pack(PACKS / "tr.yaml")
+    schedule = solve(CaseGraph(pack, CaseProfile()))
+
+    filing = schedule.steps["file_inheritance_tax_declaration"]
+    assert filing.latest_start is not None
+    assert filing.latest_finish == 120
+
+    report = next(d for d in schedule.deadlines if d.deadline_id == "inheritance_tax_declaration")
+    assert report.kind == "action"
+    # The reported day is when the filing could actually be completed, not when
+    # its inputs merely exist.
+    assert report.ready_day == filing.earliest_finish
+
+
+def test_deadline_with_no_backward_anchor_is_rejected() -> None:
+    """A deadline nothing schedules backwards from is a silent no-op."""
+    raw = {
+        "meta": {
+            "jurisdiction": "XX",
+            "name": "Test",
+            "version": "0.0.1",
+            "language": "en",
+            "last_reviewed": "2026-08-15",
+        },
+        "artifacts": [{"id": "a", "kind": "document", "name_en": "A"}],
+        "deadlines": [{"id": "d", "name_en": "D", "duration_days": 30}],
+        "steps": [
+            {
+                "id": "s",
+                "name_en": "S",
+                "requires": [],
+                "produces": ["a"],
+                "duration_days": {"max": 1},
+            }
+        ],
+    }
+    pack = Pack.model_validate(raw)
+    with pytest.raises(PackValidationError) as exc:
+        pack.validate_consistency()
+    assert any("satisfied_by" in p for p in exc.value.problems)
+
+
+# ---------------------------------------------------------------------------
+# mutually exclusive routes to the same artifact
+# ---------------------------------------------------------------------------
+def test_contested_heirs_swap_the_notary_route_for_the_court() -> None:
+    """Two producers of one artifact, and the case decides which one exists."""
+    pack = load_pack(PACKS / "tr.yaml")
+
+    ordinary = {s.id for s in CaseGraph(pack, CaseProfile()).steps}
+    contested = {s.id for s in CaseGraph(pack, CaseProfile.from_list(["has_contested_heirs"])).steps}
+
+    assert "obtain_inheritance_certificate" in ordinary
+    assert "obtain_inheritance_certificate_court" not in ordinary
+
+    assert "obtain_inheritance_certificate" not in contested
+    assert "obtain_inheritance_certificate_court" in contested
+
+
+def test_the_slow_route_puts_the_irreversible_deadline_at_risk() -> None:
+    """The scene the whole product exists for.
+
+    An uncontested estate clears the 90-day renunciation window. A contested one
+    cannot: the court route alone outruns the deadline, so the family would be
+    deciding whether to accept the debts without knowing what they are. Aftermath
+    has to say so on day one rather than discover it on day 67.
+    """
+    pack = load_pack(PACKS / "tr.yaml")
+
+    def renunciation(conditions: list[str]):
+        schedule = solve(CaseGraph(pack, CaseProfile.from_list(conditions)))
+        return next(d for d in schedule.deadlines if d.deadline_id == "renounce_inheritance")
+
+    ordinary = renunciation([])
+    contested = renunciation(["has_contested_heirs"])
+
+    assert ordinary.feasible
+    assert not contested.feasible
+    assert contested.slack_days < 0
+    assert contested.ready_day > contested.day
+    # And the schedule surfaces it without anyone asking.
+    contested_schedule = solve(CaseGraph(pack, CaseProfile.from_list(["has_contested_heirs"])))
+    assert contested_schedule.at_risk
+
+
+def test_applies_unless_must_name_a_known_condition() -> None:
+    raw = {
+        "meta": {
+            "jurisdiction": "XX",
+            "name": "Test",
+            "version": "0.0.1",
+            "language": "en",
+            "last_reviewed": "2026-08-15",
+        },
+        "artifacts": [{"id": "a", "kind": "document", "name_en": "A"}],
+        "steps": [
+            {
+                "id": "s",
+                "name_en": "S",
+                "requires": [],
+                "produces": ["a"],
+                "duration_days": {"max": 1},
+                "applies_unless": "has_a_yacht",
+            }
+        ],
+    }
+    pack = Pack.model_validate(raw)
+    with pytest.raises(PackValidationError) as exc:
+        pack.validate_consistency()
+    assert any("has_a_yacht" in p for p in exc.value.problems)

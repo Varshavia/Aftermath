@@ -116,14 +116,31 @@ reads as legal advice.
 
 ---
 
+## Two kinds of deadline
+
+A deadline is satisfied either by *knowing* something or by *doing* something,
+and the two schedule differently.
+
+`requires_decision_input` models the first: you cannot decide whether to renounce
+until the debt picture exists, so the solver walks back through the artifact
+chain from day 90. `satisfied_by` models the second: the 120-day tax declaration
+is discharged by a specific step, so that step inherits the clock directly and
+everything upstream of it inherits it in turn.
+
+A deadline must declare at least one; the loader rejects one that declares
+neither, because nothing would schedule backwards from it. When it declares both,
+the engine takes the later of the two.
+
+---
+
 ## Known gaps (v0)
 
-- **Action deadlines vs decision deadlines.** `requires_decision_input` models
-  "you cannot decide until X exists". A deadline that is itself an action (*file
-  the declaration by day 120*) does not currently pull its own step onto the
-  backward pass. Needs a `satisfied_by: <step_id>` field on `deadlines`.
 - **Multiple producers** are resolved by fastest worst case, with no cost or
-  eligibility weighting.
+  eligibility weighting. Mutually exclusive routes (`applies_unless`) are
+  modelled; *choosing between simultaneously available* routes is not.
+- **`_mark_critical` flags every step carrying the minimum slack**, rather than
+  tracing an actual chain. On the current packs the two coincide; on a pack where
+  an unrelated branch happens to share the tightest slack it would over-report.
 - **Durations are static.** They should eventually learn from observed
   institution response times.
 - No per-state US packs; `us.yaml` is illustrative only.
